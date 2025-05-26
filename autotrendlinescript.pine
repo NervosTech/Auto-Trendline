@@ -52,12 +52,21 @@ breakoutDown = close < pl1 - breakoutSensitivity * atr
 plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.green, style=shape.labelup, text="Break ↑")
 plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.red, style=shape.labeldown, text="Break ↓")
 
-// === Support and Resistance Zones ===
+// === Improved Support and Resistance Detection ===
 var float srHigh = na
 var float srLow = na
 
-srHigh := ta.highest(high, srLookback)
-srLow := ta.lowest(low, srLookback)
+srHigh := ta.valuewhen(high == ta.highest(high, srLookback), high, 0)
+srLow := ta.valuewhen(low == ta.lowest(low, srLookback), low, 0)
 
 plot(srHigh, "Resistance", color=color.orange, linewidth=1, style=plot.style_linebr)
 plot(srLow, "Support", color=color.teal, linewidth=1, style=plot.style_linebr)
+
+// === Optional: Highlight Zones ===
+bgcolor(close >= srHigh ? color.new(color.orange, 85) : na)
+bgcolor(close <= srLow ? color.new(color.teal, 85) : na)
+
+// === Optional: Labels on Levels ===
+if bar_index % 50 == 0
+    label.new(bar_index, srHigh, "Resistance", style=label.style_label_down, color=color.orange, textcolor=color.white)
+    label.new(bar_index, srLow, "Support", style=label.style_label_up, color=color.teal, textcolor=color.white)
