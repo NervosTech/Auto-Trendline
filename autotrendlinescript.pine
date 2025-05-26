@@ -1,0 +1,63 @@
+//@version=5
+indicator("Auto Trendline, Triangle, Breakout, S/R", overlay=true)
+
+// === Input Settings ===
+pivotLen = input.int(5, "Pivot Strength", minval=1)
+srLookback = input.int(100, "Support/Resistance Lookback", minval=10)
+breakoutSensitivity = input.float(1.5, "Breakout Sensitivity (x ATR)", minval=0.1)
+
+// === Pivot Detection ===
+ph = ta.pivothigh(high, pivotLen, pivotLen)
+pl = ta.pivotlow(low, pivotLen, pivotLen)
+
+// === Store Last 2 Pivots for Trendlines ===
+var float ph1 = na
+var float ph2 = na
+var int ph1_bar = na
+var int ph2_bar = na
+
+var float pl1 = na
+var float pl2 = na
+var int pl1_bar = na
+var int pl2_bar = na
+
+if not na(ph)
+    ph2 := ph1
+    ph2_bar := ph1_bar
+    ph1 := ph
+    ph1_bar := bar_index - pivotLen
+
+if not na(pl)
+    pl2 := pl1
+    pl2_bar := pl1_bar
+    pl1 := pl
+    pl1_bar := bar_index - pivotLen
+
+// === Draw Trendlines ===
+if not na(ph1) and not na(ph2)
+    line.new(x1=ph2_bar, y1=ph2, x2=ph1_bar, y2=ph1, extend=extend.right, color=color.red, width=1)
+
+if not na(pl1) and not na(pl2)
+    line.new(x1=pl2_bar, y1=pl2, x2=pl1_bar, y2=pl1, extend=extend.right, color=color.green, width=1)
+
+// === Triangle Formation ===
+if not na(ph1) and not na(pl1)
+    line.new(x1=ph1_bar, y1=ph1, x2=pl1_bar, y2=pl1, extend=extend.none, color=color.blue, style=line.style_dashed)
+
+// === Breakout Detection ===
+atr = ta.atr(14)
+breakoutUp = close > ph1 + breakoutSensitivity * atr
+breakoutDown = close < pl1 - breakoutSensitivity * atr
+
+plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.green, style=shape.labelup, text="Break ↑")
+plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.red, style=shape.labeldown, text="Break ↓")
+
+// === Support and Resistance Zones ===
+var float srHigh = na
+var float srLow = na
+
+srHigh := ta.highest(high, srLookback)
+srLow := ta.lowest(low, srLookback)
+
+plot(srHigh, "Resistance", color=color.orange, linewidth=1, style=plot.style_linebr)
+plot(srLow, "Support", color=color.teal, linewidth=1, style=plot.style_linebr)
