@@ -1,72 +1,82 @@
 //@version=5
-indicator("Auto Trendline, Triangle, Breakout, S/R", overlay=true)
+indicator("Auto Trendline, Triangle, Breakout, S/R (Upgraded)", overlay=true)
 
 // === Input Settings ===
 pivotLen = input.int(5, "Pivot Strength", minval=1)
 srLookback = input.int(100, "Support/Resistance Lookback", minval=10)
 breakoutSensitivity = input.float(1.5, "Breakout Sensitivity (x ATR)", minval=0.1)
+showZones = input.bool(true, "Highlight S/R Zones")
+showLabels = input.bool(true, "Show S/R Labels")
+maxLabels = input.int(10, "Max Labels on Chart", minval=1, maxval=100)
 
 // === Pivot Detection ===
 ph = ta.pivothigh(high, pivotLen, pivotLen)
 pl = ta.pivotlow(low, pivotLen, pivotLen)
 
-// === Store Last 2 Pivots for Trendlines ===
-var float ph1 = na
-var float ph2 = na
-var int ph1_bar = na
-var int ph2_bar = na
+// === Store Last 2 Pivots ===
+var float[2] phVals = na
+var int[2] phBars = na
 
-var float pl1 = na
-var float pl2 = na
-var int pl1_bar = na
-var int pl2_bar = na
+var float[2] plVals = na
+var int[2] plBars = na
 
 if not na(ph)
-    ph2 := ph1
-    ph2_bar := ph1_bar
-    ph1 := ph
-    ph1_bar := bar_index - pivotLen
+    phVals := array.unshift(phVals, ph)
+    phBars := array.unshift(phBars, bar_index - pivotLen)
+    if array.size(phVals) > 2
+        array.pop(phVals)
+        array.pop(phBars)
 
 if not na(pl)
-    pl2 := pl1
-    pl2_bar := pl1_bar
-    pl1 := pl
-    pl1_bar := bar_index - pivotLen
+    plVals := array.unshift(plVals, pl)
+    plBars := array.unshift(plBars, bar_index - pivotLen)
+    if array.size(plVals) > 2
+        array.pop(plVals)
+        array.pop(plBars)
 
 // === Draw Trendlines ===
-if not na(ph1) and not na(ph2)
-    line.new(x1=ph2_bar, y1=ph2, x2=ph1_bar, y2=ph1, extend=extend.right, color=color.red, width=1)
+if array.size(phVals) == 2
+    line.new(array.get(phBars, 1), array.get(phVals, 1), array.get(phBars, 0), array.get(phVals, 0), 
+             extend=extend.right, color=color.red, width=1)
 
-if not na(pl1) and not na(pl2)
-    line.new(x1=pl2_bar, y1=pl2, x2=pl1_bar, y2=pl1, extend=extend.right, color=color.green, width=1)
+if array.size(plVals) == 2
+    line.new(array.get(plBars, 1), array.get(plVals, 1), array.get(plBars, 0), array.get(plVals, 0), 
+             extend=extend.right, color=color.green, width=1)
 
 // === Triangle Formation ===
-if not na(ph1) and not na(pl1)
-    line.new(x1=ph1_bar, y1=ph1, x2=pl1_bar, y2=pl1, extend=extend.none, color=color.blue, style=line.style_dashed)
+if array.size(phVals) > 0 and array.size(plVals) > 0
+    line.new(array.get(phBars, 0), array.get(phVals, 0), array.get(plBars, 0), array.get(plVals, 0), 
+             extend=extend.none, color=color.blue, style=line.style_dashed)
 
 // === Breakout Detection ===
 atr = ta.atr(14)
-breakoutUp = close > ph1 + breakoutSensitivity * atr
-breakoutDown = close < pl1 - breakoutSensitivity * atr
+ph1 = array.size(phVals) > 0 ? array.get(phVals, 0) : na
+pl1 = array.size(plVals) > 0 ? array.get(plVals, 0) : na
 
-plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.green, style=shape.labelup, text="Break ↑")
-plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.red, style=shape.labeldown, text="Break ↓")
+breakoutUp = not na(ph1) and close > ph1 + breakoutSensitivity * atr
+breakoutDown = not na(pl1) and close < pl1 - breakoutSensitivity * atr
 
-// === Improved Support and Resistance Detection ===
-var float srHigh = na
-var float srLow = na
+plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.green, 
+          style=shape.labelup, text="Break ↑")
+plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.red, 
+          style=shape.labeldown, text="Break ↓")
 
-srHigh := ta.valuewhen(high == ta.highest(high, srLookback), high, 0)
-srLow := ta.valuewhen(low == ta.lowest(low, srLookback), low, 0)
+// === S/R Levels ===
+srHigh = ta.valuewhen(high == ta.highest(high, srLookback), high, 0)
+srLow = ta.valuewhen(low == ta.lowest(low, srLookback), low, 0)
 
 plot(srHigh, "Resistance", color=color.orange, linewidth=1, style=plot.style_linebr)
 plot(srLow, "Support", color=color.teal, linewidth=1, style=plot.style_linebr)
 
-// === Optional: Highlight Zones ===
-bgcolor(close >= srHigh ? color.new(color.orange, 85) : na)
-bgcolor(close <= srLow ? color.new(color.teal, 85) : na)
+// === Zones & Labels ===
+bgcolor(showZones and close >= srHigh ? color.new(color.orange, 85) : na)
+bgcolor(showZones and close <= srLow ? color.new(color.teal, 85) : na)
 
-// === Optional: Labels on Levels ===
-if bar_index % 50 == 0
-    label.new(bar_index, srHigh, "Resistance", style=label.style_label_down, color=color.orange, textcolor=color.white)
-    label.new(bar_index, srLow, "Support", style=label.style_label_up, color=color.teal, textcolor=color.white)
+var label[] srLabels = array.new<label>()
+if showLabels and bar_index % 50 == 0
+    array.push(srLabels, label.new(bar_index, srHigh, "Resistance", 
+                                   style=label.style_label_down, color=color.orange, textcolor=color.white))
+    array.push(srLabels, label.new(bar_index, srLow, "Support", 
+                                   style=label.style_label_up, color=color.teal, textcolor=color.white))
+    if array.size(srLabels) > maxLabels
+        label.delete(array.shift(srLabels))
