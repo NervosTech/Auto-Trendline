@@ -14,32 +14,32 @@ ph = ta.pivothigh(high, pivotLen, pivotLen)
 pl = ta.pivotlow(low, pivotLen, pivotLen)
 
 // === Store Last 2 Pivots ===
-var float[2] phVals = na
-var int[2] phBars = na
+var phVals = array.new_float()
+var phBars = array.new_int()
 
-var float[2] plVals = na
-var int[2] plBars = na
+var plVals = array.new_float()
+var plBars = array.new_int()
 
 if not na(ph)
-    phVals := array.unshift(phVals, ph)
-    phBars := array.unshift(phBars, bar_index - pivotLen)
+    array.unshift(phVals, ph)
+    array.unshift(phBars, bar_index - pivotLen)
     if array.size(phVals) > 2
         array.pop(phVals)
         array.pop(phBars)
 
 if not na(pl)
-    plVals := array.unshift(plVals, pl)
-    plBars := array.unshift(plBars, bar_index - pivotLen)
+    array.unshift(plVals, pl)
+    array.unshift(plBars, bar_index - pivotLen)
     if array.size(plVals) > 2
         array.pop(plVals)
         array.pop(plBars)
 
 // === Draw Trendlines ===
-if array.size(phVals) == 2
+if array.size(phVals) == 2 and array.size(phBars) == 2
     line.new(array.get(phBars, 1), array.get(phVals, 1), array.get(phBars, 0), array.get(phVals, 0), 
              extend=extend.right, color=color.red, width=1)
 
-if array.size(plVals) == 2
+if array.size(plVals) == 2 and array.size(plBars) == 2
     line.new(array.get(plBars, 1), array.get(plVals, 1), array.get(plBars, 0), array.get(plVals, 0), 
              extend=extend.right, color=color.green, width=1)
 
@@ -72,7 +72,7 @@ plot(srLow, "Support", color=color.teal, linewidth=1, style=plot.style_linebr)
 bgcolor(showZones and close >= srHigh ? color.new(color.orange, 85) : na)
 bgcolor(showZones and close <= srLow ? color.new(color.teal, 85) : na)
 
-var label[] srLabels = array.new<label>()
+var srLabels = array.new<label>()
 if showLabels and bar_index % 50 == 0
     array.push(srLabels, label.new(bar_index, srHigh, "Resistance", 
                                    style=label.style_label_down, color=color.orange, textcolor=color.white))
