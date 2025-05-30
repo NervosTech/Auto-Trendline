@@ -1,5 +1,5 @@
 //@version=5
-indicator("Auto Trendline, Triangle, Breakout, S/R (Upgraded)", overlay=true)
+indicator("Auto Trendline, Triangle, Breakout, S/R with Enhancements", overlay=true)
 
 // === Input Settings ===
 pivotLen = input.int(5, "Pivot Strength", minval=1)
@@ -8,15 +8,20 @@ breakoutSensitivity = input.float(1.5, "Breakout Sensitivity (x ATR)", minval=0.
 showZones = input.bool(true, "Highlight S/R Zones")
 showLabels = input.bool(true, "Show S/R Labels")
 maxLabels = input.int(10, "Max Labels on Chart", minval=1, maxval=100)
+wedgeThreshold = input.float(5.0, "Wedge Angle Threshold", minval=0.1)
+htf = input.timeframe("60", "Higher Timeframe")
+lookbackBars = input.int(500, "Chart Range Lookback")
+
+// === Dynamic Chart High/Low ===
+chartHigh = ta.highest(high, lookbackBars)
+chartLow = ta.lowest(low, lookbackBars)
 
 // === Pivot Detection ===
 ph = ta.pivothigh(high, pivotLen, pivotLen)
 pl = ta.pivotlow(low, pivotLen, pivotLen)
 
-// === Store Last 2 Pivots ===
 var phVals = array.new_float()
 var phBars = array.new_int()
-
 var plVals = array.new_float()
 var plBars = array.new_int()
 
@@ -35,18 +40,48 @@ if not na(pl)
         array.pop(plBars)
 
 // === Draw Trendlines ===
+var line upperTL = na
+var line lowerTL = na
+var int upperTouches = 0
+var int lowerTouches = 0
+
 if array.size(phVals) == 2 and array.size(phBars) == 2
-    line.new(array.get(phBars, 1), array.get(phVals, 1), array.get(phBars, 0), array.get(phVals, 0), 
-             extend=extend.right, color=color.red, width=1)
+    upperTL := line.new(array.get(phBars, 1), array.get(phVals, 1), array.get(phBars, 0), array.get(phVals, 0), extend=extend.right, color=color.red, width=1)
+    upperTouches := 0
 
 if array.size(plVals) == 2 and array.size(plBars) == 2
-    line.new(array.get(plBars, 1), array.get(plVals, 1), array.get(plBars, 0), array.get(plVals, 0), 
-             extend=extend.right, color=color.green, width=1)
+    lowerTL := line.new(array.get(plBars, 1), array.get(plVals, 1), array.get(plBars, 0), array.get(plVals, 0), extend=extend.right, color=color.green, width=1)
+    lowerTouches := 0
 
-// === Triangle Formation ===
-if array.size(phVals) > 0 and array.size(plVals) > 0
-    line.new(array.get(phBars, 0), array.get(phVals, 0), array.get(plBars, 0), array.get(plVals, 0), 
-             extend=extend.none, color=color.blue, style=line.style_dashed)
+touchMargin = 0.005
+touchUpper = not na(upperTL) and math.abs(close - line.get_price(upperTL, bar_index)) / close <= touchMargin
+touchLower = not na(lowerTL) and math.abs(close - line.get_price(lowerTL, bar_index)) / close <= touchMargin
+if touchUpper
+    upperTouches += 1
+if touchLower
+    lowerTouches += 1
+
+if bar_index % 50 == 0 and showLabels
+    label.new(bar_index, line.get_price(upperTL, bar_index), "Upper Strength: " + str.tostring(upperTouches), style=label.style_label_down, color=color.red, textcolor=color.white)
+    label.new(bar_index, line.get_price(lowerTL, bar_index), "Lower Strength: " + str.tostring(lowerTouches), style=label.style_label_up, color=color.green, textcolor=color.white)
+
+// === Wedge Detection & Alerts ===
+wedgeType = ""
+wedgeDetected = false
+if not na(upperTL) and not na(lowerTL)
+    upperSlope = line.get_price(upperTL, bar_index) - line.get_price(upperTL, bar_index - 1)
+    lowerSlope = line.get_price(lowerTL, bar_index) - line.get_price(lowerTL, bar_index - 1)
+    angleDiff = math.abs(math.atan(upperSlope) - math.atan(lowerSlope))
+    wedgeDetected := angleDiff < wedgeThreshold
+    if wedgeDetected
+        wedgeType := upperSlope > 0 and lowerSlope > 0 ? "Rising" : "Falling"
+
+plotshape(wedgeDetected and wedgeType == "Rising", location=location.abovebar, color=color.red, style=shape.triangleup, title="Rising Wedge", text="Rising Wedge")
+plotshape(wedgeDetected and wedgeType == "Falling", location=location.belowbar, color=color.green, style=shape.triangledown, title="Falling Wedge", text="Falling Wedge")
+
+alertcondition(wedgeDetected, "Wedge Detected", "A wedge pattern has formed.")
+alertcondition(close > line.get_price(upperTL, bar_index), "Breakout Up", "Breakout from upper trendline.")
+alertcondition(close < line.get_price(lowerTL, bar_index), "Breakout Down", "Breakout from lower trendline.")
 
 // === Breakout Detection ===
 atr = ta.atr(14)
@@ -56,17 +91,16 @@ pl1 = array.size(plVals) > 0 ? array.get(plVals, 0) : na
 breakoutUp = not na(ph1) and close > ph1 + breakoutSensitivity * atr
 breakoutDown = not na(pl1) and close < pl1 - breakoutSensitivity * atr
 
-plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.green, 
-          style=shape.labelup, text="Break ↑")
-plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.red, 
-          style=shape.labeldown, text="Break ↓")
+plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.lime, style=shape.labelup, text="Break ↑")
+plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.red, style=shape.labeldown, text="Break ↓")
 
 // === S/R Levels ===
 srHigh = ta.valuewhen(high == ta.highest(high, srLookback), high, 0)
 srLow = ta.valuewhen(low == ta.lowest(low, srLookback), low, 0)
-
-plot(srHigh, "Resistance", color=color.orange, linewidth=1, style=plot.style_linebr)
-plot(srLow, "Support", color=color.teal, linewidth=1, style=plot.style_linebr)
+plot(srHigh, "Local Resistance", color=color.orange, linewidth=1)
+plot(srLow, "Local Support", color=color.teal, linewidth=1)
+plot(chartHigh, "Chart High", color=color.fuchsia, style=plot.style_linebr, linewidth=1)
+plot(chartLow, "Chart Low", color=color.navy, style=plot.style_linebr, linewidth=1)
 
 // === Zones & Labels ===
 bgcolor(showZones and close >= srHigh ? color.new(color.orange, 85) : na)
@@ -74,9 +108,23 @@ bgcolor(showZones and close <= srLow ? color.new(color.teal, 85) : na)
 
 var srLabels = array.new<label>()
 if showLabels and bar_index % 50 == 0
-    array.push(srLabels, label.new(bar_index, srHigh, "Resistance", 
-                                   style=label.style_label_down, color=color.orange, textcolor=color.white))
-    array.push(srLabels, label.new(bar_index, srLow, "Support", 
-                                   style=label.style_label_up, color=color.teal, textcolor=color.white))
+    array.push(srLabels, label.new(bar_index, srHigh, "Resistance", style=label.style_label_down, color=color.orange, textcolor=color.white))
+    array.push(srLabels, label.new(bar_index, srLow, "Support", style=label.style_label_up, color=color.teal, textcolor=color.white))
     if array.size(srLabels) > maxLabels
         label.delete(array.shift(srLabels))
+
+// === Chart High/Low Labels ===
+var label chartHighLabel = na
+var label chartLowLabel = na
+
+if bar_index % 100 == 0
+    label.delete(chartHighLabel)
+    label.delete(chartLowLabel)
+    chartHighLabel := label.new(bar_index, chartHigh, "Chart High", style=label.style_label_down, color=color.fuchsia, textcolor=color.white)
+    chartLowLabel := label.new(bar_index, chartLow, "Chart Low", style=label.style_label_up, color=color.navy, textcolor=color.white)
+
+// === Multi-Timeframe S/R ===
+htfHigh = request.security(syminfo.tickerid, htf, ta.highest(high, srLookback), lookahead=barmerge.lookahead_off)
+htfLow = request.security(syminfo.tickerid, htf, ta.lowest(low, srLookback), lookahead=barmerge.lookahead_off)
+plot(htfHigh, "HTF Resistance", color=color.red, linewidth=1, style=plot.style_stepline)
+plot(htfLow, "HTF Support", color=color.green, linewidth=1, style=plot.style_stepline)
